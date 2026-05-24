@@ -8,13 +8,37 @@ import {
   Share2, ChevronDown, ChevronUp, ShoppingCart,
   HelpCircle, Zap, Clock, CheckCircle, Info,
   Coins, Tag, Phone, Gamepad2, ArrowLeft,
+  Copy, X, Loader2,
 } from 'lucide-react';
 
-// ─── Accordion (Payment) ──────────────────────────────────────────────────────
+// ─── Payment Result Types ─────────────────────────────────────────────────────
+interface PaymentResult {
+  type: 'qris' | 'va' | 'cstore';
+  order_id: string;
+  qr_url?: string;
+  va_number?: string;
+  bank?: string;
+  biller_code?: string;
+  bill_key?: string;
+  payment_code?: string;
+  store?: string;
+  expiry_time?: string;
+}
+
+// ─── Payment Method Config ────────────────────────────────────────────────────
+interface PaymentMethod {
+  name: string;
+  color: string;
+  short: string;
+  type: 'qris' | 'va' | 'cstore';
+  bank?: string;
+  store?: string;
+}
+
 interface AccordionItem {
   id: string;
   label: string;
-  methods: { name: string; color: string; short: string }[];
+  methods: PaymentMethod[];
 }
 
 const paymentGroups: AccordionItem[] = [
@@ -22,35 +46,138 @@ const paymentGroups: AccordionItem[] = [
     id: 'ewallet',
     label: 'QRIS & E-Wallet',
     methods: [
-      { name: 'QRIS',      color: 'from-red-500 to-red-600',       short: 'QRIS' },
-      { name: 'DANA',      color: 'from-blue-500 to-blue-600',     short: 'DANA' },
-      { name: 'ShopeePay', color: 'from-orange-500 to-red-500',    short: 'SPay' },
-      { name: 'OVO',       color: 'from-purple-600 to-purple-700', short: 'OVO'  },
-      { name: 'GoPay',     color: 'from-teal-500 to-green-500',    short: 'GPay' },
+      { name: 'QRIS',      color: 'from-red-500 to-red-600',       short: 'QRIS', type: 'qris' },
+      { name: 'GoPay',     color: 'from-teal-500 to-green-500',    short: 'GPay', type: 'qris' },
     ],
   },
   {
     id: 'va',
     label: 'Transfer Bank / Virtual Account',
     methods: [
-      { name: 'BCA',     color: 'from-blue-600 to-blue-700',    short: 'BCA'  },
-      { name: 'BNI',     color: 'from-orange-600 to-orange-700', short: 'BNI' },
-      { name: 'Mandiri', color: 'from-yellow-500 to-yellow-600', short: 'MDR' },
-      { name: 'BRI',     color: 'from-sky-500 to-sky-600',       short: 'BRI' },
-      { name: 'Permata', color: 'from-red-400 to-red-500',       short: 'PRM' },
+      { name: 'BCA',     color: 'from-blue-600 to-blue-700',     short: 'BCA',  type: 'va', bank: 'bca' },
+      { name: 'BNI',     color: 'from-orange-600 to-orange-700', short: 'BNI',  type: 'va', bank: 'bni' },
+      { name: 'BRI',     color: 'from-sky-500 to-sky-600',       short: 'BRI',  type: 'va', bank: 'bri' },
+      { name: 'Mandiri', color: 'from-yellow-500 to-yellow-600', short: 'MDR',  type: 'va', bank: 'mandiri' },
+      { name: 'Permata', color: 'from-red-400 to-red-500',       short: 'PRM',  type: 'va', bank: 'permata' },
     ],
   },
   {
     id: 'market',
     label: 'Minimarket',
     methods: [
-      { name: 'Indomaret', color: 'from-red-600 to-red-700',   short: 'INDO' },
-      { name: 'Alfamart',  color: 'from-red-500 to-pink-500',  short: 'ALFA' },
+      { name: 'Indomaret', color: 'from-red-600 to-red-700',  short: 'INDO', type: 'cstore', store: 'indomaret' },
+      { name: 'Alfamart',  color: 'from-red-500 to-pink-500', short: 'ALFA', type: 'cstore', store: 'alfamart' },
     ],
   },
 ];
 
-function PaymentAccordion() {
+// ─── Payment Result Display Component ─────────────────────────────────────────
+function PaymentResultDisplay({ result, onClose }: { result: PaymentResult; onClose: () => void }) {
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('Berhasil disalin!');
+  };
+
+  return (
+    <div className="mt-4 p-5 bg-white dark:bg-slate-800 border-2 border-blue-300 dark:border-blue-600 rounded-2xl shadow-lg">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="font-bold text-gray-900 dark:text-white text-sm">
+          {result.type === 'qris' && '📱 Scan QR Code untuk Bayar'}
+          {result.type === 'va' && `🏦 Virtual Account ${result.bank?.toUpperCase()}`}
+          {result.type === 'cstore' && `🏪 Kode Pembayaran ${result.store}`}
+        </h4>
+        <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+          <X className="w-4 h-4 text-gray-500" />
+        </button>
+      </div>
+
+      {/* QRIS - Show QR Code */}
+      {result.type === 'qris' && result.qr_url && (
+        <div className="text-center">
+          <div className="inline-block p-4 bg-white rounded-2xl shadow-inner border">
+            <img src={result.qr_url} alt="QR Code" className="w-56 h-56 mx-auto" />
+          </div>
+          <p className="text-xs text-muted mt-3">Scan QR code di atas menggunakan aplikasi e-wallet atau mobile banking</p>
+        </div>
+      )}
+
+      {/* VA - Show VA Number */}
+      {result.type === 'va' && (
+        <div className="text-center space-y-3">
+          {result.bank === 'mandiri' ? (
+            <>
+              <div>
+                <p className="text-xs text-muted mb-1">Biller Code</p>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-2xl font-black text-gray-900 dark:text-white tracking-widest">{result.biller_code}</span>
+                  <button onClick={() => copyToClipboard(result.biller_code || '')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                    <Copy className="w-4 h-4 text-blue-500" />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-muted mb-1">Bill Key</p>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-2xl font-black text-gray-900 dark:text-white tracking-widest">{result.bill_key}</span>
+                  <button onClick={() => copyToClipboard(result.bill_key || '')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                    <Copy className="w-4 h-4 text-blue-500" />
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-xs text-muted mb-1">Nomor Virtual Account</p>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-2xl font-black text-gray-900 dark:text-white tracking-widest">{result.va_number}</span>
+                <button onClick={() => copyToClipboard(result.va_number || '')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                  <Copy className="w-4 h-4 text-blue-500" />
+                </button>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-muted">Transfer ke nomor VA di atas melalui ATM, mobile banking, atau internet banking</p>
+        </div>
+      )}
+
+      {/* CStore - Show Payment Code */}
+      {result.type === 'cstore' && (
+        <div className="text-center space-y-3">
+          <div>
+            <p className="text-xs text-muted mb-1">Kode Pembayaran</p>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-2xl font-black text-gray-900 dark:text-white tracking-widest">{result.payment_code}</span>
+              <button onClick={() => copyToClipboard(result.payment_code || '')} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                <Copy className="w-4 h-4 text-blue-500" />
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-muted">Tunjukkan kode ini ke kasir {result.store} untuk melakukan pembayaran</p>
+        </div>
+      )}
+
+      {/* Order ID & Expiry */}
+      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-700 space-y-1">
+        <p className="text-xs text-muted">Order ID: <span className="font-mono font-bold text-gray-700 dark:text-slate-300">{result.order_id}</span></p>
+        {result.expiry_time && (
+          <p className="text-xs text-muted">Batas waktu: <span className="font-bold text-red-500">{result.expiry_time}</span></p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Payment Accordion with clickable methods ─────────────────────────────────
+function PaymentAccordion({
+  onSelectMethod,
+  selectedMethod,
+  loading,
+}: {
+  onSelectMethod: (method: PaymentMethod) => void;
+  selectedMethod: string | null;
+  loading: boolean;
+}) {
   const [openId, setOpenId] = useState<string | null>('ewallet');
 
   return (
@@ -70,15 +197,26 @@ function PaymentAccordion() {
             </button>
             {isOpen && (
               <div className="px-4 py-3 bg-white dark:bg-slate-800 flex flex-wrap gap-2">
-                {group.methods.map(m => (
-                  <div
-                    key={m.name}
-                    title={m.name}
-                    className={`h-9 w-16 rounded-lg bg-gradient-to-br ${m.color} flex items-center justify-center`}
-                  >
-                    <span className="text-white text-[9px] font-black tracking-tight">{m.short}</span>
-                  </div>
-                ))}
+                {group.methods.map(m => {
+                  const isSelected = selectedMethod === m.name;
+                  return (
+                    <button
+                      key={m.name}
+                      title={`Bayar dengan ${m.name}`}
+                      disabled={loading}
+                      onClick={() => onSelectMethod(m)}
+                      className={`h-10 px-4 rounded-lg bg-gradient-to-br ${m.color} flex items-center justify-center transition-all duration-200 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isSelected ? 'ring-2 ring-offset-2 ring-blue-500 scale-105 shadow-lg' : ''
+                      }`}
+                    >
+                      {loading && isSelected ? (
+                        <Loader2 className="w-4 h-4 text-white animate-spin" />
+                      ) : (
+                        <span className="text-white text-[10px] font-black tracking-tight">{m.short}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -105,35 +243,25 @@ function ItemCard({ item, selected, onSelect }: ItemCardProps) {
           : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600'
       }`}
     >
-      {/* Popular badge */}
       {item.popular && (
         <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
           HOT
         </span>
       )}
-      {/* Selection ring */}
       {selected && (
         <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
           <CheckCircle className="w-3 h-3 text-white" />
         </span>
       )}
-
-      {/* Icon + Name */}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-2xl leading-none">{item.icon}</span>
         <span className="text-xs font-semibold text-gray-800 dark:text-slate-200 leading-tight">{item.name}</span>
       </div>
-
-      {/* Discount badge */}
       <span className="inline-block bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded mb-1">
         -{item.discount}%
       </span>
-
-      {/* Price */}
       <p className="text-blue-500 font-black text-sm">{formatPrice(item.price)}</p>
       <p className="text-gray-400 dark:text-slate-500 text-[10px] line-through">{formatPrice(item.originalPrice)}</p>
-
-      {/* Bonus coins */}
       <div className="flex items-center gap-0.5 mt-1">
         <Coins className="w-2.5 h-2.5 text-yellow-500" />
         <span className="text-[10px] text-yellow-600 dark:text-yellow-400 font-medium">+{item.bonusCoins} koin</span>
@@ -172,7 +300,11 @@ export function GameTopupPage() {
   const [whatsapp,   setWhatsapp]   = useState('');
   const [ordering,   setOrdering]   = useState(false);
 
-  // Related games (same category, excluding current)
+  // Payment state
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+
   const relatedGames = games.filter(g => g.category === 'game' && g.id !== gameId).slice(0, 6);
 
   if (!game || !detail) {
@@ -192,6 +324,13 @@ export function GameTopupPage() {
 
   const selectedItemData = detail.items.find(i => i.id === selectedItem);
 
+  // Discounted price if promo applied
+  const finalPrice = selectedItemData
+    ? promoApplied
+      ? Math.round(selectedItemData.price * 0.9)
+      : selectedItemData.price
+    : null;
+
   const handleApplyPromo = () => {
     if (promoCode.toUpperCase() === 'DECRAB10') {
       setPromoApplied(true);
@@ -202,39 +341,82 @@ export function GameTopupPage() {
     }
   };
 
-  const handleOrder = async () => {
+  // Handle payment method click — directly call Midtrans Core API
+  const handlePaymentMethodClick = async (method: PaymentMethod) => {
     if (!userId) return alert('Masukkan User ID terlebih dahulu.');
     if (!selectedItem) return alert('Pilih item top-up terlebih dahulu.');
     if (!whatsapp) return alert('Masukkan nomor WhatsApp untuk notifikasi.');
-    setOrdering(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setOrdering(false);
-    alert(`✅ Order berhasil!\n\nGame: ${game.title}\nItem: ${selectedItemData?.name}\nTotal: ${formatPrice(selectedItemData?.price ?? 0)}\n\nNotifikasi akan dikirim ke WhatsApp Anda.`);
-  };
 
-  // Discounted price if promo applied
-  const finalPrice = selectedItemData
-    ? promoApplied
-      ? Math.round(selectedItemData.price * 0.9)
-      : selectedItemData.price
-    : null;
+    setSelectedPaymentMethod(method.name);
+    setPaymentLoading(true);
+    setPaymentResult(null);
+
+    const orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    try {
+      let endpoint = '';
+      let body: any = {
+        orderId,
+        grossAmount: finalPrice,
+        itemName: selectedItemData?.name,
+        gameName: game.title,
+      };
+
+      if (method.type === 'qris') {
+        endpoint = '/api/charge/qris';
+      } else if (method.type === 'va') {
+        endpoint = '/api/charge/bank-transfer';
+        body.bank = method.bank;
+      } else if (method.type === 'cstore') {
+        endpoint = '/api/charge/cstore';
+        body.store = method.store;
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Gagal membuat pembayaran');
+      }
+
+      setPaymentResult({
+        type: method.type,
+        order_id: data.order_id,
+        qr_url: data.qr_url,
+        va_number: data.va_number,
+        bank: data.bank,
+        biller_code: data.biller_code,
+        bill_key: data.bill_key,
+        payment_code: data.payment_code,
+        store: data.store,
+        expiry_time: data.expiry_time,
+      });
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      alert(`❌ Gagal: ${error.message}`);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
   return (
     <Layout>
       {/* ── Header Banner ── */}
       <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-500 to-amber-400">
-        {/* Background image */}
         <img
           src={detail.banner}
           alt={game.title}
           className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm scale-105"
         />
-        {/* Decorative circles */}
         <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-white/10" />
         <div className="absolute right-40 -bottom-12 w-48 h-48 rounded-full bg-white/10" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Breadcrumb */}
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-5 transition-colors"
@@ -243,9 +425,7 @@ export function GameTopupPage() {
           </Link>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-            {/* Left: icon + info */}
             <div className="flex items-center gap-5">
-              {/* Game Icon */}
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-4 border-white/30 shadow-2xl flex-shrink-0 bg-white/10">
                 <img
                   src={detail.icon}
@@ -254,13 +434,9 @@ export function GameTopupPage() {
                   onError={e => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(game.title)}&background=f97316&color=fff&size=200&bold=true`; }}
                 />
               </div>
-
-              {/* Text */}
               <div>
                 <h1 className="text-2xl sm:text-3xl font-black text-white drop-shadow">{game.title}</h1>
                 <p className="text-white/80 text-sm mt-1">{detail.developer}</p>
-
-                {/* Status Badges */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   <span className="inline-flex items-center gap-1.5 bg-purple-500/80 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full">
                     <Zap className="w-3 h-3" /> Instan
@@ -274,8 +450,6 @@ export function GameTopupPage() {
                 </div>
               </div>
             </div>
-
-            {/* Right: Share button */}
             <button className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-white/50 text-white text-sm font-semibold hover:bg-white/10 transition-colors backdrop-blur-sm">
               <Share2 className="w-4 h-4" />
               Bagikan
@@ -290,8 +464,6 @@ export function GameTopupPage() {
 
           {/* ── Left Sidebar ── */}
           <aside className="w-full lg:w-72 flex-shrink-0 space-y-5 order-2 lg:order-1">
-
-            {/* Petunjuk Topup */}
             <div className="card p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Info className="w-4 h-4 text-blue-500" />
@@ -301,10 +473,9 @@ export function GameTopupPage() {
                 {[
                   'Pilih game dan nominal yang ingin dibeli.',
                   `Masukkan ${detail.idLabel}${detail.serverLabel ? ` dan ${detail.serverLabel}` : ''} dengan benar.`,
-                  'Pilih metode pembayaran yang diinginkan.',
-                  'Gunakan kode promo jika tersedia.',
-                  'Masukkan nomor WhatsApp aktif untuk notifikasi.',
-                  'Klik "Order Sekarang" dan selesaikan pembayaran.',
+                  'Pilih metode pembayaran — klik untuk langsung bayar.',
+                  'QR Code / Nomor VA akan langsung muncul.',
+                  'Selesaikan pembayaran sebelum batas waktu.',
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-slate-400">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-500 text-xs font-black flex items-center justify-center mt-0.5">
@@ -316,7 +487,6 @@ export function GameTopupPage() {
               </ol>
             </div>
 
-            {/* Game Terkait */}
             <div className="card p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Gamepad2 className="w-4 h-4 text-blue-500" />
@@ -395,7 +565,7 @@ export function GameTopupPage() {
                     key={item.id}
                     item={item}
                     selected={selectedItem === item.id}
-                    onSelect={() => setSelectedItem(item.id)}
+                    onSelect={() => { setSelectedItem(item.id); setPaymentResult(null); }}
                   />
                 ))}
               </div>
@@ -413,13 +583,8 @@ export function GameTopupPage() {
               )}
             </StepCard>
 
-            {/* Step 3 — Metode Pembayaran */}
-            <StepCard step={3} title="Metode Pembayaran">
-              <PaymentAccordion />
-            </StepCard>
-
-            {/* Step 4 — Kode Promo */}
-            <StepCard step={4} title="Punya Kode Promo?">
+            {/* Step 3 — Kode Promo */}
+            <StepCard step={3} title="Punya Kode Promo?">
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -452,8 +617,8 @@ export function GameTopupPage() {
               <p className="text-xs text-muted mt-2">Coba kode: <code className="text-blue-500 font-mono font-bold">DECRAB10</code> untuk diskon 10%.</p>
             </StepCard>
 
-            {/* Step 5 — Kontak */}
-            <StepCard step={5} title="Kontak (WhatsApp)">
+            {/* Step 4 — Kontak */}
+            <StepCard step={4} title="Kontak (WhatsApp)">
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -465,7 +630,7 @@ export function GameTopupPage() {
                 />
               </div>
               <p className="text-xs text-muted mt-2 leading-relaxed">
-                Nomor WhatsApp aktif diperlukan untuk menerima notifikasi status pesanan dan konfirmasi pembayaran.
+                Nomor WhatsApp aktif diperlukan untuk menerima notifikasi status pesanan.
               </p>
             </StepCard>
 
@@ -506,30 +671,28 @@ export function GameTopupPage() {
               </div>
             )}
 
-            {/* CTA — Order */}
-            <button
-              onClick={handleOrder}
-              disabled={ordering}
-              className={`w-full btn-primary py-4 rounded-2xl text-base font-black flex items-center justify-center gap-3 shadow-xl shadow-blue-500/30 ${ordering ? 'opacity-75' : ''}`}
-            >
-              {ordering ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                  Memproses...
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-5 h-5" />
-                  Order Sekarang
-                  {finalPrice && <span className="text-sm font-semibold opacity-80">— {formatPrice(finalPrice)}</span>}
-                </>
+            {/* Step 5 — Metode Pembayaran (Klik langsung bayar) */}
+            <StepCard step={5} title="Pilih & Bayar — Klik Metode Pembayaran">
+              <p className="text-xs text-muted mb-3">
+                Klik metode pembayaran di bawah untuk langsung mendapatkan QR Code / Nomor VA.
+              </p>
+              <PaymentAccordion
+                onSelectMethod={handlePaymentMethodClick}
+                selectedMethod={selectedPaymentMethod}
+                loading={paymentLoading}
+              />
+
+              {/* Payment Result — QR Code / VA Number / Payment Code */}
+              {paymentResult && (
+                <PaymentResultDisplay
+                  result={paymentResult}
+                  onClose={() => { setPaymentResult(null); setSelectedPaymentMethod(null); }}
+                />
               )}
-            </button>
+            </StepCard>
+
             <p className="text-center text-xs text-muted pb-4">
-              🔒 Transaksi aman dan terenkripsi. Proses instan 24/7.
+              🔒 Transaksi aman via Midtrans (Sandbox). Proses instan 24/7.
             </p>
           </div>
         </div>
