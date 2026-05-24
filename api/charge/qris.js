@@ -1,4 +1,4 @@
-const midtransClient = require('midtrans-client');
+import midtransClient from 'midtrans-client';
 
 const core = new midtransClient.CoreApi({
   isProduction: false,
@@ -6,8 +6,7 @@ const core = new midtransClient.CoreApi({
   clientKey: 'SB-Mid-client-QkCx_W3mUacRh9uG',
 });
 
-module.exports = async function handler(req, res) {
-  // CORS headers
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -43,7 +42,7 @@ module.exports = async function handler(req, res) {
       (a) => a.name === 'generate-qr-code'
     );
 
-    res.json({
+    return res.status(200).json({
       status: chargeResponse.transaction_status,
       order_id: chargeResponse.order_id,
       qr_url: qrAction?.url || null,
@@ -52,9 +51,9 @@ module.exports = async function handler(req, res) {
     });
   } catch (error) {
     console.error('QRIS Error:', error?.ApiResponse || error.message);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to create QRIS payment',
       details: error?.ApiResponse?.status_message || error.message,
     });
   }
-};
+}
